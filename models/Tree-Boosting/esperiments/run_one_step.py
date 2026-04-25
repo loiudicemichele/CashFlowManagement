@@ -29,7 +29,7 @@ from data.data_loader import load_data
 from features.feature_engineering import prepare_data
 from training.grid_search import run_grid_search, grid_search_results_to_dataframe, train_best_model_from_grid, \
                             save_grid_search, load_grid_search
-from evaluation.evaluator import compute_metrics, save_predictions
+from evaluation.evaluator import compute_metrics, save_predictions, inverse_detrend_predictions
 from visualization.plots import plot_learning_curve, plot_forecast
 from data.data_loader import save_best_params, load_best_params
 
@@ -65,7 +65,8 @@ config = ExperimentConfig(
             'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos',
             'month_sin', 'month_cos', 'weekend', 'holiday', 'actual_holiday'
         ],
-        detrend = False
+        detrend = True,
+        detrend_period = 31
     ),
 
     # Model configuration
@@ -230,13 +231,18 @@ For early stopping, the training set is split into train/validation (80%/20%) re
 print("\nTraining final model on full training set...")
 
 grid_search = load_grid_search(output_dir / "grid_search_object.pkl")
-# Temporal split: last 20% as validation
-n_train = len(X_train)
-val_size = int(n_train * 0.2)
-X_train_final = X_train.iloc[:-val_size] if val_size > 0 else X_train
-y_train_final = y_train.iloc[:-val_size] if val_size > 0 else y_train
-X_val = X_train.iloc[-val_size:] if val_size > 0 else None
-y_val = y_train.iloc[-val_size:] if val_size > 0 else None
+# # Temporal split: last 20% as validation
+# n_train = len(X_train)
+# val_size = int(n_train * 0.2)
+# X_train_final = X_train.iloc[:-val_size] if val_size > 0 else X_train
+# y_train_final = y_train.iloc[:-val_size] if val_size > 0 else y_train
+# X_val = X_train.iloc[-val_size:] if val_size > 0 else None
+# y_val = y_train.iloc[-val_size:] if val_size > 0 else None
+
+X_train_final = X_train
+y_train_final = y_train
+X_val = X_test
+y_val = y_test
 
 # Train final model using the utility function
 final_model = train_best_model_from_grid(
@@ -260,8 +266,36 @@ Predictions and ground truth are saved as CSV together with metadata (date, stor
 """
 
 print("\nEvaluating on test set...")
-y_pred_test = final_model.predict(X_test)
-metrics = compute_metrics(y_test, y_pred_test)
+y_pred_test_raw = final_model.predict(X_test)
+
+if config.features.detrend:
+    print("Inverting the log-differenced predictions to original scale...")
+    target_col = config.data.target_col
+    period = config.features.detrend_period
+
+    df_test['y_true_orig'] = df_test.groupby(config.data.group_col)[target_col].shift(-1)
+    df_test['base_log'] = np.log(df_test[target_col]).groupby(df_test[config.data.group_col]).shift(period - 1)
+
+    meta_reset = meta_test.reset_index()
+    df_test_reset = df_test.reset_index()
+    aligned = pd.merge(
+        meta_reset, 
+        df_test_reset[['date', config.data.group_col, 'y_true_orig', 'base_log']],
+        on=['date', config.data.group_col], 
+        how='left'
+    )
+    y_test_eval = aligned['y_true_orig']
+    base_log_series = aligned['base_log']
+    y_pred_test_eval = inverse_detrend_predictions(
+        y_pred_diff=y_pred_test_raw,
+        base_log_series=base_log_series,
+        detrend_period=period
+    )
+else:
+    y_test_eval = y_test
+    y_pred_test_eval = y_pred_test_raw
+
+metrics = compute_metrics(y_test_eval, y_pred_test_eval)
 
 print("\nTest metrics:")
 for metric, value in metrics.items():
@@ -273,8 +307,8 @@ with open(output_dir / "test_metrics.json", "w") as f:
 
 # Save predictions
 save_predictions(
-    y_true = y_test,
-    y_pred = y_pred_test,
+    y_true = y_test_eval,
+    y_pred = y_pred_test_eval,
     metadata = meta_test,
     filepath = output_dir / "test_predictions.csv",
     step_names = None
@@ -300,8 +334,8 @@ plot_learning_curve(
 Sum values across all stores for each date and compare actual vs predicted series.
 """
 test_df_with_pred = meta_test.copy()
-test_df_with_pred['true'] = y_test.values
-test_df_with_pred['pred'] = y_pred_test
+test_df_with_pred['true'] = y_test_eval.values
+test_df_with_pred['pred'] = y_pred_test_eval
 
 aggregated = test_df_with_pred.groupby('date')[['true', 'pred']].sum()
 
@@ -325,4 +359,5 @@ if config.output.save_model:
     model_path = output_dir / "final_model.pkl"
     joblib.dump(final_model, model_path)
     print(f"Model saved to {model_path}")
+
 # %%

@@ -203,7 +203,7 @@ def plot_multi_step_forecast(y_true: Union[pd.Series, pd.DataFrame, np.ndarray],
         figsize: Figure size.
         save_path: If provided, save the figure to this path.
     """
-    # 1. Aggregate predictions by date
+    # Aggregate predictions by date
     if isinstance(y_pred, np.ndarray):
         pred_cols = [f'step_{i+1}' for i in range(n_steps)]
         df_preds = pd.DataFrame(y_pred, index=metadata.index, columns=pred_cols)
@@ -213,7 +213,7 @@ def plot_multi_step_forecast(y_true: Union[pd.Series, pd.DataFrame, np.ndarray],
         
     df_preds_agg = df_preds.groupby(df_preds.index).sum()
     
-    # 2. Aggregate real values by date (using the first step t+1 as the continuous real line)
+    # Aggregate real values by date (using the first step t+1 as the continuous real line)
     if isinstance(y_true, np.ndarray):
         real_target = y_true[:, 0]
     else:
@@ -222,7 +222,7 @@ def plot_multi_step_forecast(y_true: Union[pd.Series, pd.DataFrame, np.ndarray],
     df_real = pd.DataFrame({'real_target': real_target}, index=metadata.index)
     real_cash_balance = df_real.groupby(df_real.index)['real_target'].sum()
 
-    # 3. Plotting
+    # Plotting
     plt.figure(figsize=figsize)
     plt.plot(real_cash_balance.index, real_cash_balance.values, 
              label='Real Cash Balance', color='#196194', linewidth=1.5)
