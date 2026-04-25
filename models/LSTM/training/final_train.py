@@ -49,13 +49,13 @@ def final_training(X_train_t, y_train_t, best_params, config, device, output_dir
     # DataLoaders
     train_loader = DataLoader(
         TensorDataset(X_tr, y_tr),
-        batch_size=best_params['batch_size'],
-        shuffle=False
+        batch_size = best_params['batch_size'],
+        shuffle = False
     )
     val_loader = DataLoader(
         TensorDataset(X_val, y_val),
-        batch_size=best_params['batch_size'],
-        shuffle=False
+        batch_size = best_params['batch_size'],
+        shuffle = False
     )
 
     # Initialize model with best hyperparameters
@@ -82,7 +82,7 @@ def final_training(X_train_t, y_train_t, best_params, config, device, output_dir
         train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
 
         # Validation phase
-        val_loss, _, _ = validate(model, val_loader, criterion, device)
+        val_loss = validate(model, val_loader, criterion, device)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)

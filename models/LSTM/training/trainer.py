@@ -34,7 +34,8 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     total_loss = 0.0
 
     for batch_X, batch_y in loader:
-        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+        # Data should be already on the GPU
+        # batch_X, batch_y = batch_X.to(device), batch_y.to(device)
 
         optimizer.zero_grad()                 # Clear previous gradients
         preds = model(batch_X)                # Forward pass
@@ -48,7 +49,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     return avg_loss
 
 
-def validate(model, loader, criterion, device):
+def validate(model, loader, criterion, device, return_Preds = False):
     """
     Evaluate the model on a validation or test set.
 
@@ -69,25 +70,30 @@ def validate(model, loader, criterion, device):
     """
     model.eval()
     total_loss = 0.0
-    preds_list = []
-    actuals_list = []
+    if return_Preds:
+        preds_list = []
+        actuals_list = []
 
     with torch.no_grad():
         for batch_X, batch_y in loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+            # batch_X, batch_y = batch_X.to(device), batch_y.to(device)
 
             preds = model(batch_X)
             loss = criterion(preds, batch_y)
 
             total_loss += loss.item() * batch_X.size(0)
-            preds_list.append(preds.cpu().numpy())
-            actuals_list.append(batch_y.cpu().numpy())
+            if return_Preds:
+                preds_list.append(preds.cpu().numpy())
+                actuals_list.append(batch_y.cpu().numpy())
 
+    
     avg_loss = total_loss / len(loader.dataset)
-    preds_all = np.vstack(preds_list)
-    actuals_all = np.vstack(actuals_list)
-
-    return avg_loss, preds_all, actuals_all
+    if return_Preds: 
+        preds_all = np.vstack(preds_list)
+        actuals_all = np.vstack(actuals_list)
+        return preds_all, actuals_all
+    else:
+        return avg_loss
 
 
 def compute_metrics(actuals, preds, target_scaler=None):

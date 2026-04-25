@@ -90,15 +90,15 @@ def run_grid_search(X_train_t, y_train_t, config, device, target_scaler, output_
                 dropout=params['dropout']
             ).to(device)
 
-            optimizer = torch.optim.Adam(model.parameters(), lr=params['learning_rate'])
+            optimizer = torch.optim.Adam(model.parameters(), lr = params['learning_rate'])
             criterion = torch.nn.MSELoss()
 
             # Training loop
             for epoch in range(params['epochs']):
-                train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+                train_one_epoch(model, train_loader, optimizer, criterion, device)
 
             # Validation
-            val_loss, preds, actuals = validate(model, val_loader, criterion, device)
+            preds, actuals = validate(model, val_loader, criterion, device, return_Preds=True)
 
             # Inverse transform to original Euro scale
             preds_inv = target_scaler.inverse_transform(

@@ -21,14 +21,12 @@ import pandas as pd
 import numpy as np
 import torch
 
-# %load_ext autoreload
-# %autoreload 2
 # Add project root to path (adjust if notebook is in a subfolder)
 sys.path.append(os.path.abspath('..'))
 
 from config.experiment_config import ExperimentConfig
 from data.data_loader import load_data, scale_data, save_scalers
-from features.sequence_builder import create_sequences_all_stores, prepare_tensors
+from features.sequence_builder import create_sequences, prepare_tensors
 from training.grid_search import run_grid_search
 from training.final_train import final_training
 from evaluation.evaluator import evaluate_test_set
@@ -38,29 +36,28 @@ from utils.helpers import set_seed_and_device
 print("All modules imported successfully.\n")
 
 # %% [markdown]
-# ## Experiment Configuration
+# ## 2. Experiment Configuration
 
 config = ExperimentConfig()
 
 # --- Task selection ---
-config.n_outputs = 1
-config.data_dir = '../Datasets/data_partitioned'
-config.output_dir = './outputs/one_step_all_stores'
-
-# Adding the store ID as a column to consider
-config.no_scale_cols.append('store_id')
-
+config.n_outputs = 1             # 1 = one‑step, 14 = multi‑step
+config.output_dir = './outputs/one_step_aggregated'
 os.makedirs(config.output_dir, exist_ok=True)
 
+# Optional: override grid for a quick test
+# config.param_grid = {'hidden_dim': [64], 'num_layers': [1], 'learning_rate': [0.001],
+#                      'dropout': [0], 'batch_size': [64], 'epochs': [5]}
+
 # %% [markdown]
-# ## Device and Reproducibility
+# ## 3. Device and Reproducibility
 
 device = set_seed_and_device(config.seed)
 print(f"Output directory: {config.output_dir}")
 print(f"Forecast horizon: {config.n_outputs} step(s)\n")
 
 # %% [markdown]
-# ## Data Loading and Scaling
+# ## 4. Data Loading and Scaling
 
 train_df, test_df = load_data(config)
 train_scaled, test_scaled, feature_scaler, target_scaler = scale_data(train_df, test_df, config)
@@ -68,24 +65,24 @@ train_scaled, test_scaled, feature_scaler, target_scaler = scale_data(train_df, 
 # Save scalers for later inference
 save_scalers(feature_scaler, target_scaler, config.output_dir)
 
-# inspect the first rows
+# Optional: inspect the first rows
 # train_df.head()
 
 # %% [markdown]
-# ## Sequence Generation and Tensor Preparation
+# ## 5. Sequence Generation and Tensor Preparation
 
-X_train, y_train, train_dates = create_sequences_all_stores(train_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col)
-X_test, y_test, test_dates = create_sequences_all_stores(test_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col)
+X_train, y_train = create_sequences(train_scaled, config.target_col, config.n_lags, config.n_outputs)
+X_test, y_test = create_sequences(test_scaled, config.target_col, config.n_lags, config.n_outputs)
 
 X_train_t, y_train_t = prepare_tensors(X_train, y_train, device)
 X_test_t, y_test_t = prepare_tensors(X_test, y_test, device)
 
 print(f"N_FEATURES: {X_train_t.shape[2]}\n")
-X_train_t.shape
-# %% [markdown]
-# ## Hyperparameter Grid Search (Optional)
 
-# To skip grid search, set `skip_grid_search = True`
+# %% [markdown]
+# ## 6. Hyperparameter Grid Search (Optional)
+
+# To skip grid search (e.g., if already run), set `skip_grid_search = True`
 skip_grid_search = False
 
 # config.param_grid = {'hidden_dim': [64], 'num_layers': [1], 'learning_rate': [0.001], 
@@ -102,7 +99,7 @@ else:
     print(f"[+] Loaded existing best parameters: {best_params}")
 
 # %% [markdown]
-# ## Final Model Training
+# ## 7. Final Model Training
 
 # Note: If you already have a trained model and only want to evaluate,
 #       set `skip_training = True` and jump to the evaluation section.
@@ -115,10 +112,10 @@ if not skip_training:
     )
 
 # %% [markdown]
-# ## Evaluation on the Test Set
+# ## 8. Evaluation on the Test Set
 
 # If evaluating a previously saved model without re‑training:
-load_pretrained = True   # Set to True to load from disk
+load_pretrained = False   # Set to True to load from disk
 
 if load_pretrained:
     from models.lstm_model import CashFlowLSTM
@@ -143,12 +140,12 @@ test_preds_inv, test_actuals_inv = evaluate_test_set(
 )
 
 # %% [markdown]
-# ## Visualizations
+# ## 9. Visualizations
 
 # Learning curve (requires that final training was run and loss CSV saved)
 plot_learning_curve(config.output_dir)
 
 # Forecast plot
-#test_dates = test_df.index[config.n_lags : config.n_lags + len(test_preds_inv)]
+test_dates = test_df.index[config.n_lags : config.n_lags + len(test_preds_inv)]
 plot_forecast(test_actuals_inv, test_preds_inv, test_dates, config.output_dir, config.n_outputs)
 # %%

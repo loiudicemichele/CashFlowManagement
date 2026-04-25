@@ -44,6 +44,53 @@ def create_sequences(data_df, target_col, n_lags, n_outputs):
     print(f"[+] Sequences generated: X shape {X.shape}, y shape {y.shape}")
     return X, y
 
+def create_sequences_all_stores(data_df, target_col, n_lags, n_outputs, store_col='store_id'):
+    """
+    Transform a 2D DataFrame into 3D sequences for supervised learning (Panel Data).
+
+    Sequences are generated strictly WITHIN each store to avoid mixing histories.
+    After generation, sequences are sorted chronologically.
+
+    Args:
+        data_df (pd.DataFrame): Scaled DataFrame including features and target.
+        target_col (str): Name of the target column to forecast.
+        n_lags (int): Number of past time steps to include in each input sequence.
+        n_outputs (int): Number of future time steps to predict per sample.
+        store_col (str): Column name identifying the different stores/entities.
+
+    Returns:
+        tuple: (X_sorted, y_sorted, dates_sorted)
+    """
+    X, y, sequence_dates = [], [], []
+    
+    # Drop store_id to keep only numerical features in the tensor
+    features_df = data_df.drop(columns=[store_col]) if store_col in data_df.columns else data_df
+    target_idx = features_df.columns.get_loc(target_col)
+
+    # Iterate over each store independently
+    for store_id, group in data_df.groupby(store_col):
+        group = group.sort_index()
+        data_array = group.drop(columns=[store_col]).values
+        index_array = group.index
+        
+        for i in range(len(group) - n_lags - n_outputs + 1):
+            X.append(data_array[i : i + n_lags, :])
+            y.append(data_array[i + n_lags : i + n_lags + n_outputs, target_idx])
+            # Save the exact date the prediction corresponds to (t + n_lags)
+            sequence_dates.append(index_array[i + n_lags])
+
+    X = np.array(X)
+    y = np.array(y)
+    sequence_dates = np.array(sequence_dates)
+
+    # Global chronological sorting
+    sort_indices = np.argsort(sequence_dates)
+    X_sorted = X[sort_indices]
+    y_sorted = y[sort_indices]
+    dates_sorted = sequence_dates[sort_indices]
+
+    print(f"[+] Panel sequences generated: X shape {X_sorted.shape}, y shape {y_sorted.shape}")
+    return X_sorted, y_sorted, dates_sorted
 
 def prepare_tensors(X, y, device):
     """

@@ -12,7 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 import joblib
 
 
-def load_data(config):
+def load_data(config) -> pd.DataFrame:
     """
     Load training and test datasets from the specified directory.
 
@@ -61,9 +61,10 @@ def scale_data(train_df, test_df, config):
     Returns:
         tuple: (train_scaled_df, test_scaled_df, feature_scaler, target_scaler)
     """
-    features_to_scale = [
-        col for col in train_df.columns if col not in config.no_scale_cols
-    ]
+    features_to_scale = [col for col in train_df.columns if col not in config.no_scale_cols]
+    unscaled_cols = [col for col in train_df.columns if col in config.no_scale_cols]
+
+    # Initialize scalers
 
     feature_scaler = MinMaxScaler()
     target_scaler = MinMaxScaler()
@@ -83,6 +84,12 @@ def scale_data(train_df, test_df, config):
         columns=features_to_scale,
         index=test_df.index
     )
+
+    # Adding the unscaled Features
+    for col in unscaled_cols:
+        if col in train_df.columns:
+            train_scaled_df[col] = train_df[col]
+            test_scaled_df[col] = test_df[col]
 
     # Fit target scaler separately
     target_scaler.fit(train_df[[config.target_col]])

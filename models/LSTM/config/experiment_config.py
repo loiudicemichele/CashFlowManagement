@@ -12,6 +12,7 @@ class ExperimentConfig:
         data_dir (str): Path to the directory containing train/test CSV files.
         output_dir (str): Directory where models, scalers, metrics, and plots will be saved.
         target_col (str): Name of the target column to predict.
+        store_col (str) : Name of the store column to consider.
         no_scale_cols (List[str]): List of column names that should not be scaled 
                                     (e.g., cyclical time features, binary flags).
         n_lags (int): Number of past time steps (sequence length) used as input.
@@ -27,9 +28,10 @@ class ExperimentConfig:
     # Paths
     data_dir: str = '../Datasets/data_partitioned/aggregated'
     output_dir: str = './outputs/one_step'          # Will be overridden based on the task
-    
+
     # Data
     target_col: str = 'cash_balance'
+    store_col: str = 'store_id'
     no_scale_cols: List[str] = field(default_factory=lambda: [
         'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos',
         'month_sin', 'month_cos', 'weekend', 'holiday', 'actual_holiday'
