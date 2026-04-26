@@ -1,29 +1,27 @@
 # %% [markdown]
-# # LSTM Forecasting Experiment Driver
+# # LSTM Direct Multi-Step Forecasting (Vector Output)
 # 
-# This notebook orchestrates the full forecasting pipeline:
-# 1. Load configuration and set up the environment.
-# 2. Load and preprocess data.
-# 3. Generate sequences and tensors.
-# 4. Run hyperparameter grid search (optional).
-# 5. Train the final model.
-# 6. Evaluate on the test set.
-# 7. Visualize results.
-# 
-# Each step is modular and can be executed independently.
+# This notebook uses the full pipeline for a Direct Multi-Step forecast:
+# * Loads the configuration and sets the output horizon.
+# * Loads and preprocesses the full panel data.
+# * Generates 3D tensors where the target `y` contains multiple future steps.
+# * Runs hyperparameter grid search on the vector-output architecture.
+# * Trains the final model.
+# * Evaluates the model globally across all predicted steps.
+# * Visualizes the 1-step vs n-step forecast degradation.
 
 # %% [markdown]
 # ## Imports and Environment Setup
-
+"""
+Importing necessary libraries and custom modules.
+"""
 import os
 import sys
 import pandas as pd
 import numpy as np
 import torch
 
-# %load_ext autoreload
-# %autoreload 2
-# Add project root to path (adjust if notebook is in a subfolder)
+# Add project root to path
 sys.path.append(os.path.abspath('..'))
 
 from config.experiment_config import ExperimentConfig
@@ -39,56 +37,69 @@ print("All modules imported successfully.\n")
 
 # %% [markdown]
 # ## Experiment Configuration
-
+"""
+Setting up the configuration for the Multi-Output experiment.
+Here we change the prediction horizon to 14 days.
+"""
 config = ExperimentConfig()
 
 # --- Task selection ---
-config.n_outputs = 1
-config.data_dir = '../../../Datasets/data_partitioned'
-config.output_dir = '../outputs/one_step_small_network'
+config.n_outputs = 14  # The model will output an array of 14 future days directly
+config.data_dir = '../../../Datasets/data_partitioned' # Adjust path as needed
+config.output_dir = '../outputs/multi_output'
 
-# Adding the store ID as a column to consider
-config.no_scale_cols.append('store_id')
+# Adding the store ID as a column to consider so it is not scaled
+if 'store_id' not in config.no_scale_cols:
+    config.no_scale_cols.append('store_id')
 
 os.makedirs(config.output_dir, exist_ok=True)
 
 # %% [markdown]
 # ## Device and Reproducibility
-
+"""
+Setting the global seed and detecting CPU/GPU for deterministic execution.
+"""
 device = set_seed_and_device(config.seed)
 print(f"Output directory: {config.output_dir}")
 print(f"Forecast horizon: {config.n_outputs} step(s)\n")
 
 # %% [markdown]
 # ## Data Loading and Scaling
-
+"""
+Loading the training and test datasets and applying MinMax scaling.
+Continuous features are scaled, while cyclical/categorical ones are bypassed.
+"""
 train_df, test_df = load_data(config)
 train_scaled, test_scaled, feature_scaler, target_scaler = scale_data(train_df, test_df, config)
 
 # Save scalers for later inference
 save_scalers(feature_scaler, target_scaler, config.output_dir)
 
-# inspect the first rows
-# train_df.head()
-
 # %% [markdown]
 # ## Sequence Generation and Tensor Preparation
-
-X_train, y_train, train_dates = create_sequences_all_stores(train_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col)
-X_test, y_test, test_dates = create_sequences_all_stores(test_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col)
+"""
+Generating sliding windows independently for each store.
+The target array 'y' will now have shape (samples, 14).
+"""
+X_train, y_train, train_dates = create_sequences_all_stores(
+    train_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col
+)
+X_test, y_test, test_dates = create_sequences_all_stores(
+    test_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col
+)
 
 X_train_t, y_train_t = prepare_tensors(X_train, y_train, device)
 X_test_t, y_test_t = prepare_tensors(X_test, y_test, device)
 
 print(f"N_FEATURES: {X_train_t.shape[2]}\n")
+
 # %% [markdown]
-# ## Hyperparameter Grid Search (Optional)
-
-# To skip grid search, set `skip_grid_search = True`
+# ## Hyperparameter Grid Search
+"""
+Running Grid Search using TimeSeriesSplit to find the optimal architecture
+for predicting 14 days at once.
+"""
 skip_grid_search = False
-
-# config.param_grid = {'hidden_dim': [64], 'num_layers': [1], 'learning_rate': [0.001], 
-#                      'dropout': [0], 'batch_size': [64], 'epochs': [5]}
 
 if not skip_grid_search:
     best_params, best_metrics = run_grid_search(
@@ -102,10 +113,10 @@ else:
 
 # %% [markdown]
 # ## Final Model Training
-
-# Note: If you already have a trained model and only want to evaluate,
-#       set `skip_training = True` and jump to the evaluation section.
-
+"""
+Training the final model using the best hyperparameters found.
+The model checkpointing logic will save the weights with the lowest validation loss.
+"""
 skip_training = False
 
 if not skip_training:
@@ -115,9 +126,11 @@ if not skip_training:
 
 # %% [markdown]
 # ## Evaluation on the Test Set
-
-# If evaluating a previously saved model without re‑training:
-load_pretrained = False   # Set to True to load from disk
+"""
+Evaluating the vector-output model on the unseen test set.
+Metrics (MAE, RMSE, MAPE) are computed globally over all 14 predicted steps.
+"""
+load_pretrained = True   # Set to True to load from disk if skipping training
 
 if load_pretrained:
     from models.lstm_model import CashFlowLSTM
@@ -131,6 +144,7 @@ if load_pretrained:
         output_dim = config.n_outputs,
         dropout = best_params['dropout']
     ).to(device)
+    
     model_path = f"{config.output_dir}/best_lstm_model.pth"
     final_model.load_state_dict(torch.load(model_path, map_location=device))
     final_model.eval()
@@ -143,11 +157,13 @@ test_preds_inv, test_actuals_inv = evaluate_test_set(
 
 # %% [markdown]
 # ## Visualizations
-
-# Learning curve (requires that final training was run and loss CSV saved)
+"""
+Plotting the learning curve and the forecast. 
+For n_outputs > 1, the plot will show the 1-step ahead and n-step ahead predictions.
+"""
+# Learning curve
 plot_learning_curve(config.output_dir)
 
 # Forecast plot
-#test_dates = test_df.index[config.n_lags : config.n_lags + len(test_preds_inv)]
 plot_forecast(test_actuals_inv, test_preds_inv, test_dates, config.output_dir, config.n_outputs)
 # %%

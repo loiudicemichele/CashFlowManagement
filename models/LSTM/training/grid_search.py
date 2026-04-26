@@ -95,10 +95,10 @@ def run_grid_search(X_train_t, y_train_t, config, device, target_scaler, output_
 
             # Training loop
             for epoch in range(params['epochs']):
-                train_one_epoch(model, train_loader, optimizer, criterion, device)
+                train_one_epoch(model, train_loader, optimizer, criterion, device, return_loss=False)
 
             # Validation
-            preds, actuals = validate(model, val_loader, criterion, device, return_Preds=True)
+            preds, actuals = validate(model, val_loader, criterion, device, return_preds=True, return_loss=False)
 
             # Inverse transform to original Euro scale
             preds_inv = target_scaler.inverse_transform(

@@ -26,9 +26,10 @@ class ExperimentConfig:
     """
     
     # Paths
-    data_dir: str = '../Datasets/data_partitioned/aggregated'
-    output_dir: str = './outputs/one_step'          # Will be overridden based on the task
-
+    data_dir: str = '../../../Datasets/data_partitioned/aggregated'
+    output_dir: str = '../outputs/one_step'          # Will be overridden based on the task
+    train_file: str = 'train_one_step.csv'
+    test_file: str = 'test_one_step.csv'
     # Data
     target_col: str = 'cash_balance'
     store_col: str = 'store_id'
@@ -48,8 +49,8 @@ class ExperimentConfig:
     
     # Grid Search hyperparameters
     param_grid: dict = field(default_factory=lambda: {
-        'hidden_dim': [128, 256],
-        'num_layers': [2, 3],
+        'hidden_dim': [64, 128],
+        'num_layers': [1, 2],
         'learning_rate': [0.01, 0.001],
         'dropout': [0, 0.2],
         'batch_size': [128],

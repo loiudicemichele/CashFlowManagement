@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 
 
-def train_one_epoch(model, loader, optimizer, criterion, device):
+def train_one_epoch(model, loader, optimizer, criterion, device, return_loss=False):
     """
     Perform one full pass over the training data.
 
@@ -41,15 +41,16 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
         preds = model(batch_X)                # Forward pass
         loss = criterion(preds, batch_y)      # Compute loss
         loss.backward()                       # Backpropagation
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()                      # Update weights
+        
+        if return_loss: total_loss += loss.item() * batch_X.size(0)
 
-        total_loss += loss.item() * batch_X.size(0)
+    if return_loss:
+        avg_loss = total_loss / len(loader.dataset)
+        return avg_loss
 
-    avg_loss = total_loss / len(loader.dataset)
-    return avg_loss
-
-
-def validate(model, loader, criterion, device, return_Preds = False):
+def validate(model, loader, criterion, device, return_preds = False, return_loss=True):
     """
     Evaluate the model on a validation or test set.
 
@@ -70,7 +71,7 @@ def validate(model, loader, criterion, device, return_Preds = False):
     """
     model.eval()
     total_loss = 0.0
-    if return_Preds:
+    if return_preds:
         preds_list = []
         actuals_list = []
 
@@ -79,19 +80,21 @@ def validate(model, loader, criterion, device, return_Preds = False):
             # batch_X, batch_y = batch_X.to(device), batch_y.to(device)
 
             preds = model(batch_X)
-            loss = criterion(preds, batch_y)
+            if return_loss:
+                loss = criterion(preds, batch_y)
+                total_loss += loss.item() * batch_X.size(0)
 
-            total_loss += loss.item() * batch_X.size(0)
-            if return_Preds:
+            if return_preds:
                 preds_list.append(preds.cpu().numpy())
                 actuals_list.append(batch_y.cpu().numpy())
 
-    
     avg_loss = total_loss / len(loader.dataset)
-    if return_Preds: 
+    if return_preds: 
         preds_all = np.vstack(preds_list)
         actuals_all = np.vstack(actuals_list)
-        return preds_all, actuals_all
+        if return_loss:
+            return avg_loss, preds_all, actuals_all
+        else: return preds_all, actuals_all
     else:
         return avg_loss
 

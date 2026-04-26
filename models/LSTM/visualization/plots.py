@@ -69,7 +69,7 @@ def plot_forecast(test_actuals_inv, test_preds_inv, date_index, output_dir, n_ou
         output_dir (str): Directory where the plot will be saved.
         n_outputs (int): Forecast horizon (number of predicted steps). Defaults to 1.
     """
-    # 1. Panel Data Aggregation
+    # Panel Data Aggregation
     df_actuals = pd.DataFrame(test_actuals_inv, index=date_index)
     df_preds = pd.DataFrame(test_preds_inv, index=date_index)
 
@@ -79,7 +79,7 @@ def plot_forecast(test_actuals_inv, test_preds_inv, date_index, output_dir, n_ou
 
     agg_dates = df_actuals_agg.index
 
-    # 2. Plotting
+    # Plotting
     plt.figure(figsize=(14, 5))
 
     if n_outputs == 1:
@@ -88,21 +88,24 @@ def plot_forecast(test_actuals_inv, test_preds_inv, date_index, output_dir, n_ou
         plt.plot(agg_dates, df_preds_agg[0], 
                  label='Predicted Cash Flow', linestyle='--', linewidth=1.5, color="#8d1a1a")
     else:
-        # Plot 1-step ahead
-        plt.plot(agg_dates, df_actuals_agg[0], 
-                 label='Actual (t+1)', linestyle='-', linewidth=1.5, color="#196194")
-        plt.plot(agg_dates, df_preds_agg[0], 
-                 label='Predicted (1-Day Ahead)', linestyle='--', linewidth=1.5, color="#8d1a1a")
-
-        # Plot n-step ahead (shifted to align visually with the actual date it predicts)
-        shifted_index = agg_dates + pd.Timedelta(days=n_outputs - 1)
-        plt.plot(shifted_index, df_preds_agg[n_outputs - 1], 
-                 label=f'Predicted ({n_outputs}-Days Ahead)', 
-                 linestyle=':', linewidth=1.5, color="#d68b27", alpha=0.8)
-        
-        plt.plot(agg_dates, df_actuals_agg[n_outputs - 1], 
-                 label=f'Actual (t+{n_outputs})', 
-                 linestyle='-', linewidth=1, color="#2ca02c", alpha=0.6)
+       plt.plot(agg_dates, df_actuals_agg[0], 
+                 label='Actual Cash Flow', linestyle='-', linewidth=2, color="#196194", alpha=0.6)
+       # Trajectory Plotting
+       step_size = n_outputs
+       added_label = False
+       for i in range(0, len(agg_dates), step_size):
+            start_date = agg_dates[i] # Current start-date (First of fourteen day)
+            # Extracting the prediction vector from the current day
+            trajectory = df_preds_agg.iloc[i].values
+            # Creating the date-range of the n_outputs day to predict
+            traj_dates = pd.date_range(start=start_date, periods=n_outputs, freq='D')
+            label = f'Predicted Trajectory ({n_outputs} Days)' if not added_label else ""
+            # Plotting the trajectory
+            plt.plot(traj_dates, trajectory, 
+                     linestyle='--', linewidth=2, color="#8d1a1a", label=label)
+            # Point of the prediction beginning day
+            plt.scatter(start_date, trajectory[0], color="#8d1a1a", s=20, zorder=5)  
+            added_label = True
 
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Cash Balance (€)', fontsize=12)

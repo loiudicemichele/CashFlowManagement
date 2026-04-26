@@ -67,7 +67,10 @@ def final_training(X_train_t, y_train_t, best_params, config, device, output_dir
         dropout=best_params['dropout']
     ).to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=best_params['learning_rate'])
+    optimizer = torch.optim.Adam(
+        model.parameters(), 
+        lr=best_params['learning_rate'],
+        weight_decay=1e-4)
     criterion = torch.nn.MSELoss()
 
     train_losses = []
@@ -79,10 +82,10 @@ def final_training(X_train_t, y_train_t, best_params, config, device, output_dir
 
     for epoch in range(config.final_epochs):
         # Training phase
-        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, return_loss=True)
 
         # Validation phase
-        val_loss = validate(model, val_loader, criterion, device)
+        val_loss = validate(model, val_loader, criterion, device, return_preds=False, return_loss=True)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)

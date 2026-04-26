@@ -208,7 +208,7 @@ __marimo__/
 
 
 # Model's Output
-models/LSTM/experiments/outputs/*
+models/LSTM/outputs/*
 models/Tree-Boosting/outputs/*
 
 # Dump File

@@ -15,23 +15,15 @@ import joblib
 def load_data(config) -> pd.DataFrame:
     """
     Load training and test datasets from the specified directory.
-
-    The function expects CSV files named 'train_one_step.csv' and 'test_one_step.csv'
-    with a 'date' column used as a datetime index. The data is sorted chronologically.
-
-    Args:
-        config: ExperimentConfig object containing data_dir and other settings.
-
-    Returns:
-        tuple: (train_df, test_df) as pandas DataFrames with datetime index.
+    The filenames are dynamically fetched from the config.
     """
     train_df = pd.read_csv(
-        f'{config.data_dir}/train_one_step.csv',
+        f'{config.data_dir}/{config.train_file}',
         index_col='date',
         parse_dates=['date']
     )
     test_df = pd.read_csv(
-        f'{config.data_dir}/test_one_step.csv',
+        f'{config.data_dir}/{config.test_file}',
         index_col='date',
         parse_dates=['date']
     )
@@ -39,8 +31,8 @@ def load_data(config) -> pd.DataFrame:
     train_df.sort_values(['date'], inplace=True)
     test_df.sort_values(['date'], inplace=True)
 
-    print(f"[+] Training data loaded: {train_df.shape}")
-    print(f"[+] Test data loaded: {test_df.shape}")
+    print(f"[+] Training data loaded from {config.train_file}: {train_df.shape}")
+    print(f"[+] Test data loaded from {config.test_file}: {test_df.shape}")
 
     return train_df, test_df
 

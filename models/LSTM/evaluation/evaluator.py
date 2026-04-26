@@ -98,3 +98,86 @@ def evaluate_test_set(model, X_test_t, y_test_t, target_scaler, config, output_d
     print(f"[+] Final predictions saved to: {results_csv}")
 
     return test_preds_inv, test_actuals_inv
+
+def evaluate_recursive_panel(model, train_scaled_df, test_scaled_df, config, target_scaler, device):
+    """
+    Perform recursive (autoregressive) forecasting over panel data (multiple stores).
+    It initializes the sequence with the last `n_lags` of the training set and 
+    predicts step-by-step. The model's own prediction is fed back into the sequence 
+    along with the true future exogenous features (e.g., calendar features).
+    """
+    model.eval()
+    
+    # Identify the exact index of the target variable to overwrite it iteratively
+    features_df = train_scaled_df.drop(columns=[config.store_col])
+    target_idx = features_df.columns.get_loc(config.target_col)
+
+    all_preds = []
+    all_actuals = []
+    all_dates = []
+    
+    print(f"[+] Starting recursive prediction for {len(test_scaled_df[config.store_col].unique())} stores...")
+
+    with torch.no_grad():
+        # Iterate over each single store to avoid mixing temporal sequences
+        for store_id, test_group in test_scaled_df.groupby(config.store_col):
+            test_group = test_group.sort_index()
+            train_group = train_scaled_df[train_scaled_df[config.store_col] == store_id].sort_index()
+
+            # Initial Window: take the last 'n_lags' days from the Training Set
+            current_window = train_group.drop(columns=[config.store_col]).values[-config.n_lags:]
+            # Convert to tensor (shape: 1, n_lags, n_features)
+            current_window_t = torch.tensor(current_window, dtype=torch.float32).unsqueeze(0).to(device)
+
+            test_values = test_group.drop(columns=[config.store_col]).values
+            store_preds = []
+
+            # Recursive Loop over the test set's time horizon
+            for i in range(len(test_group)):
+                # Predict step t+1
+                pred = model(current_window_t)  # shape: (1, 1)
+                pred_val = pred.item()
+                store_preds.append(pred_val)
+
+                # Build the feature vector for step t+1
+                # Extract the true "safe features" (e.g., weekend, holiday) from the Test Set
+                next_step = test_values[i].copy()
+                
+                # INJECTION: Replace the true target value with our PREDICTION
+                next_step[target_idx] = pred_val
+
+                # Update the window: drop the oldest day and append the new predicted step
+                next_step_t = torch.tensor(next_step, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
+                current_window_t = torch.cat((current_window_t[:, 1:, :], next_step_t), dim=1)
+
+            # Collect the results
+            all_preds.extend(store_preds)
+            all_actuals.extend(test_values[:, target_idx]) # The actual scaled values for comparison
+            all_dates.extend(test_group.index)
+
+    # Inverse Transform to revert values back to original scale (Euros)
+    all_preds_inv = target_scaler.inverse_transform(np.array(all_preds).reshape(-1, 1))
+    all_actuals_inv = target_scaler.inverse_transform(np.array(all_actuals).reshape(-1, 1))
+
+    # Globally sort the results chronologically
+    results_df = pd.DataFrame({
+        'Date': all_dates,
+        'Actual': all_actuals_inv.flatten(),
+        'Predicted': all_preds_inv.flatten()
+    }).set_index('Date').sort_index()
+
+    # Compute Metrics
+    mae = mean_absolute_error(results_df['Actual'], results_df['Predicted'])
+    rmse = np.sqrt(mean_squared_error(results_df['Actual'], results_df['Predicted']))
+    mape = mean_absolute_percentage_error(results_df['Actual'], results_df['Predicted'])
+
+    print(f"\n[+] Final Recursive Test Set Results")
+    print(f"    RMSE: {rmse:,.2f} €")
+    print(f"    MAE:  {mae:,.2f} €")
+    print(f"    MAPE: {mape:.4%}")
+    
+    results_csv = os.path.join(config.output_dir, 'final_recursive_predictions.csv')
+    results_df.to_csv(results_csv)
+    print(f"[+] Recursive predictions saved to: {results_csv}")
+
+    return results_df['Predicted'].values, results_df['Actual'].values, results_df.index

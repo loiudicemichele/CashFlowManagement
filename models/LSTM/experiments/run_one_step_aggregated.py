@@ -42,7 +42,8 @@ config = ExperimentConfig()
 
 # --- Task selection ---
 config.n_outputs = 1             # 1 = one‑step, 14 = multi‑step
-config.output_dir = './outputs/one_step_aggregated'
+config.output_dir = '../outputs/one_step_aggregated'
+config.data_dir = '../../../Datasets/data_partitioned/aggregated'
 os.makedirs(config.output_dir, exist_ok=True)
 
 # Optional: override grid for a quick test
