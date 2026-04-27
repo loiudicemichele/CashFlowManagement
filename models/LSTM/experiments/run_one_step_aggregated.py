@@ -1,7 +1,7 @@
 # %% [markdown]
 # # LSTM Forecasting Experiment Driver
 # 
-# This notebook orchestrates the full forecasting pipeline:
+# This notebook handles the full forecasting pipeline:
 # 1. Load configuration and set up the environment.
 # 2. Load and preprocess data.
 # 3. Generate sequences and tensors.

@@ -1,35 +1,36 @@
 # %% [markdown]
-# # LSTM Direct Multi-Step Forecasting (Vector Output)
+# # LSTM Forecasting: Generalized Log-Differenced Cash Balance
 # 
-# This notebook uses the full pipeline for a Direct Multi-Step forecast:
-# * Loads the configuration and sets the output horizon.
-# * Loads and preprocesses the full panel data.
-# * Generates 3D tensors where the target `y` contains multiple future steps.
-# * Runs hyperparameter grid search on the vector-output architecture.
-# * Trains the final model.
-# * Evaluates the model globally across all predicted steps.
-# * Visualizes the 1-step vs n-step forecast degradation.
+# This notebook orchestrates the forecasting pipeline using a generalized log-difference
+# transformation on the target variable to enforce stationarity and remove seasonality:
+# Load configuration and set up the environment.
+# Define the differencing lag.
+# Load data and apply log-difference grouped by store.
+# Generate sequences and tensors.
+# Extract the actual t-lag values for final inversion.
+# Run hyperparameter grid search (optional).
+# Train the final model.
+# Evaluate on the test set (inverting the generalized log-diff transformation).
+# Visualize results.
 
 # %% [markdown]
 # ## Imports and Environment Setup
-"""
-Importing necessary libraries and custom modules.
-"""
+
 import os
 import sys
 import pandas as pd
 import numpy as np
 import torch
 
-# Add project root to path
+# Add project root to path (adjust if notebook is in a subfolder)
 sys.path.append(os.path.abspath('..'))
 
 from config.experiment_config import ExperimentConfig
-from data.data_loader import load_data, scale_data, save_scalers
+from data.data_loader import load_data, scale_data, save_scalers, apply_log_diff
 from features.sequence_builder import create_sequences_all_stores, prepare_tensors
 from training.grid_search import run_grid_search
 from training.final_train import final_training
-from evaluation.evaluator import evaluate_test_set
+from evaluation.evaluator import evaluate_test_set_log_diff
 from visualization.plots import plot_learning_curve, plot_forecast
 from utils.helpers import set_seed_and_device
 
@@ -37,49 +38,50 @@ print("All modules imported successfully.\n")
 
 # %% [markdown]
 # ## Experiment Configuration
-"""
-Setting up the configuration for the Multi-Output experiment.
-Here we change the prediction horizon to 14 days.
-"""
+
 config = ExperimentConfig()
 
 # --- Task selection ---
-config.n_outputs = 14  # The model will output an array of 14 future days directly
-config.data_dir = '../../../Datasets/data_partitioned' # Adjust path as needed
-config.output_dir = '../outputs/multi_output'
+config.n_outputs = 1
+config.data_dir = '../../../Datasets/data_partitioned'
 
-# Adding the store ID as a column to consider so it is not scaled
-if 'store_id' not in config.no_scale_cols:
-    config.no_scale_cols.append('store_id')
+# Set the lag for the difference
+config.diff_lag = 31
 
+config.output_dir = f'../outputs/one_step_log_diff_lag{config.diff_lag}'
 os.makedirs(config.output_dir, exist_ok=True)
+
+# config.no_scale_cols.append('original_target')
+config.no_scale_cols.append('store_id')
+
 
 # %% [markdown]
 # ## Device and Reproducibility
-"""
-Setting the global seed and detecting CPU/GPU for deterministic execution.
-"""
+
 device = set_seed_and_device(config.seed)
 print(f"Output directory: {config.output_dir}")
-print(f"Forecast horizon: {config.n_outputs} step(s)\n")
+print(f"Forecast horizon: {config.n_outputs} step(s)")
+print(f"Differencing Lag: {config.diff_lag} step(s)\n")
 
 # %% [markdown]
-# ## Data Loading and Scaling
-"""
-Loading the training and test datasets and applying MinMax scaling.
-Continuous features are scaled, while cyclical/categorical ones are bypassed.
-"""
+# ## Data Loading, Transformation, and Scaling
+
 train_df, test_df = load_data(config)
+raw_test_df = test_df.copy() # Saving raw data to recover the log-tranformation
+
+# Apply Generalized Log-Diff transformation
+print(f"[+] Applying Log-Diff transformation to the target (lag={config.diff_lag})...")
+train_df = apply_log_diff(train_df, config.target_col, config.store_col, config.diff_lag)
+test_df = apply_log_diff(test_df, config.target_col, config.store_col, config.diff_lag)
+
+# Scale the data (the target scaler will now map generalized log-differences)
 train_scaled, test_scaled, feature_scaler, target_scaler = scale_data(train_df, test_df, config)
 
 # Save scalers for later inference
 save_scalers(feature_scaler, target_scaler, config.output_dir)
 # %% [markdown]
 # ## Sequence Generation and Tensor Preparation
-"""
-Generating sliding windows independently for each store.
-The target array 'y' will now have shape (samples, 14).
-"""
+
 X_train, y_train, train_dates = create_sequences_all_stores(
     train_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col
 )
@@ -87,17 +89,22 @@ X_test, y_test, test_dates = create_sequences_all_stores(
     test_scaled, config.target_col, config.n_lags, config.n_outputs, config.store_col
 )
 
+# Calculating the hystorical target
+raw_test_df['y_lagged'] = raw_test_df.groupby(config.store_col)[config.target_col].shift(config.diff_lag)
+raw_test_df = raw_test_df.dropna(subset=['y_lagged'])
+# Calculating the prediction tensors (of the lagged target variable) that we expect as output. 
+_, original_y_lagged, _ = create_sequences_all_stores(
+    raw_test_df, 'y_lagged', config.n_lags, config.n_outputs, config.store_col
+)
+
+
 X_train_t, y_train_t = prepare_tensors(X_train, y_train, device)
 X_test_t, y_test_t = prepare_tensors(X_test, y_test, device)
 
 print(f"N_FEATURES: {X_train_t.shape[2]}\n")
-
 # %% [markdown]
-# ## Hyperparameter Grid Search
-"""
-Running Grid Search using TimeSeriesSplit to find the optimal architecture
-for predicting 14 days at once.
-"""
+# ## Hyperparameter Grid Search (Optional)
+
 skip_grid_search = False
 
 if not skip_grid_search:
@@ -112,10 +119,7 @@ else:
 
 # %% [markdown]
 # ## Final Model Training
-"""
-Training the final model using the best hyperparameters found.
-The model checkpointing logic will save the weights with the lowest validation loss.
-"""
+
 skip_training = False
 
 if not skip_training:
@@ -125,11 +129,8 @@ if not skip_training:
 
 # %% [markdown]
 # ## Evaluation on the Test Set
-"""
-Evaluating the vector-output model on the unseen test set.
-Metrics (MAE, RMSE, MAPE) are computed globally over all 14 predicted steps.
-"""
-load_pretrained = True   # Set to True to load from disk if skipping training
+
+load_pretrained = True   # Set to True to load from disk
 
 if load_pretrained:
     from models.lstm_model import CashFlowLSTM
@@ -143,23 +144,19 @@ if load_pretrained:
         output_dim = config.n_outputs,
         dropout = best_params['dropout']
     ).to(device)
-    
     model_path = f"{config.output_dir}/best_lstm_model.pth"
     final_model.load_state_dict(torch.load(model_path, map_location=device))
     final_model.eval()
     print(f"[+] Model loaded from {model_path}")
 
-# Run evaluation
-test_preds_inv, test_actuals_inv = evaluate_test_set(
-    final_model, X_test_t, y_test_t, target_scaler, config, config.output_dir
+# Run evaluation with Generalized Log-Diff inversion
+test_preds_inv, test_actuals_inv = evaluate_test_set_log_diff(
+    final_model, X_test_t, y_test_t, target_scaler, config, config.output_dir, original_y_lagged
 )
 
 # %% [markdown]
 # ## Visualizations
-"""
-Plotting the learning curve and the forecast. 
-For n_outputs > 1, the plot will show the 1-step ahead and n-step ahead predictions.
-"""
+
 # Learning curve
 plot_learning_curve(config.output_dir)
 

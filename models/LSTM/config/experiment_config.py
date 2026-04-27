@@ -33,6 +33,7 @@ class ExperimentConfig:
     # Data
     target_col: str = 'cash_balance'
     store_col: str = 'store_id'
+    diff_lag: int = 7 
     no_scale_cols: List[str] = field(default_factory=lambda: [
         'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos',
         'month_sin', 'month_cos', 'weekend', 'holiday', 'actual_holiday'

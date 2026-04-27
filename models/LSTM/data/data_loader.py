@@ -7,6 +7,7 @@ unscaled, and saving the fitted scalers for later inference.
 """
 
 import os
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import joblib
@@ -105,3 +106,42 @@ def save_scalers(feature_scaler, target_scaler, output_dir):
     joblib.dump(feature_scaler, f"{output_dir}/feature_scaler.pkl")
     joblib.dump(target_scaler, f"{output_dir}/target_scaler.pkl")
     print(f"[+] Scalers saved to {output_dir}/")
+
+def apply_log_diff(df: pd.DataFrame, target_col: str, store_col: str = 'store_id', diff_lag: int = 1) -> pd.DataFrame:
+    """
+    Apply logarithmic transformation and differencing to the target column.
+    The operation is grouped by the store column to prevent data leakage between different series.
+
+    Args:
+        df (pd.DataFrame): The input dataframe containing the target column.
+        target_col (str): The name of the target column to transform.
+        store_col (str): The name of the column identifying the different stores.
+        diff_lag (int): The lag period for differencing. Defaults to 1.
+
+    Returns:
+        pd.DataFrame: The transformed dataframe with the target column replaced by its log-differences,
+                      and an additional 'original_target' column preserved for later inversion.
+    """
+    df_transformed = df.copy()
+    
+    # Apply log transformation safely (assuming target > 0)
+    df_transformed[f'{target_col}_log'] = np.log(df_transformed[target_col])
+    
+    # Apply differencing grouped by store with specified lag
+    df_transformed[f'{target_col}_log_diff'] = df_transformed.groupby(store_col)[f'{target_col}_log'].diff(periods=diff_lag)
+    
+    # Drop the first 'diff_lag' rows of each store which now contain NaN due to differencing
+    df_transformed = df_transformed.dropna(subset=[f'{target_col}_log_diff'])
+    
+    # Preserve the original target for inversion during evaluation
+    # df_transformed['original_target'] = df_transformed[target_col]
+    
+    # Replace the target column with the transformed values to reuse existing pipeline
+    df_transformed[target_col] = df_transformed[f'{target_col}_log_diff']
+    
+    # Drop temporary columns
+    df_transformed = df_transformed.drop(columns=[f'{target_col}_log', f'{target_col}_log_diff'])
+    
+    print(f"[+] Log-Diff transformation applied (lag={diff_lag}). Shape after dropping NaNs: {df_transformed.shape}")
+    
+    return df_transformed
