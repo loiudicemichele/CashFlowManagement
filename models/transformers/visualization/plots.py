@@ -114,11 +114,11 @@ def plot_rolling_comparison(
     plt.figure(figsize=(14, 5))
 
     # Plot historical training data (faded)
-    plt.plot(history_dates, history,
-             label='Historical (Training)',
-             color='gray',
-             alpha=0.6,
-             linewidth=1)
+    # plt.plot(history_dates, history,
+    #          label='Historical (Training)',
+    #          color='gray',
+    #          alpha=0.6,
+    #          linewidth=1)
 
     # Plot actual test
     plt.plot(test_dates, actuals,

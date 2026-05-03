@@ -62,10 +62,6 @@ def evaluate_and_save(
 
     Returns:
         dict: Dictionary with metrics ('MAE', 'RMSE', 'MAPE').
-
-    Example:
-        >>> metrics = evaluate_and_save(preds, actuals, test_dates, config)
-        >>> print(metrics['RMSE'])
     """
     # Compute metrics
     metrics = compute_metrics(actuals, predictions)
@@ -84,7 +80,7 @@ def evaluate_and_save(
     results_df = pd.DataFrame({
         'date': date_index,
         'actual': actuals,
-        'predicted': predictions
+        'predicted': predictions.ravel()
     })
     results_df.set_index('date', inplace=True)
 

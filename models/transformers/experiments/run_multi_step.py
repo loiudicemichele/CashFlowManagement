@@ -1,6 +1,6 @@
 # %% [markdown] # Chronos‑2 Zero‑Shot Rolling One‑Step Forecast
 """
-This script performs a rolling (recursive) one‑step forecast using the Chronos‑2 model.
+This script performs a rolling (recursive) multi‑step forecast using the Chronos‑2 model.
 
 Workflow:
 1. Import required modules and set up paths.
@@ -48,7 +48,7 @@ config = ChronosConfig()
 config.data_dir = '../../../Datasets/data_partitioned/aggregated'
 config.train_file = 'train_one_step.csv'
 config.test_file = 'test_one_step.csv'
-config.output_dir = '../outputs/chronos_one_step'
+config.output_dir = '../outputs/chronos_multi_step'
 
 config.model = 'chronos-2-small'
 config.model_name = os.path.join(config.model_dir, config.model)
@@ -102,7 +102,8 @@ print(f"[+] Using context length = {config.context_len} days")
 predictions = model.predict_rolling_one_step(
     history=train_series.values,
     test_actuals=test_series.values,
-    context_len=config.context_len
+    context_len=config.context_len,
+    multi_step = True
 )
 
 print("[+] Rolling forecast completed.\n")

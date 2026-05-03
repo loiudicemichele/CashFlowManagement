@@ -39,8 +39,10 @@ class ChronosConfig:
     # Data
     target_col: str = 'cash_balance'
     model_dir: str = '../models/'
+    model: str = 'chronos-2-small'
+    
     # Model
-    model_name: str = os.path.join(model_dir, 'chronos-2-small')   # or "amazon/chronos-t5-small"
+    model_name: str = os.path.join(model_dir, model)   # or "amazon/chronos-t5-small"
 
     # Forecasting
     context_len: int = 31
