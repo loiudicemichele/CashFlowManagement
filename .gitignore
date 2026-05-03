@@ -210,5 +210,7 @@ __marimo__/
 # Model's Output
 models/LSTM/outputs/*
 models/Tree-Boosting/outputs/*
+models/transformers/outputs/*
 
 # Dump File
+models/transformers/models/*

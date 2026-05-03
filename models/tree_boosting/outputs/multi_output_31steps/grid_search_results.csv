@@ -1,0 +1,2 @@
+params,mean_test_MAE,std_test_MAE,rank_test_MAE,mean_test_MSE,std_test_MSE,rank_test_MSE,mean_test_MAPE,std_test_MAPE,rank_test_MAPE
+"{'estimator__learning_rate': 0.1, 'estimator__max_depth': 5, 'estimator__n_estimators': 100}",-751200.16875,407020.4342955414,1,-1258257924096.0,1137604313232.6611,1,-0.15125885009765624,0.08804001927731216,1
