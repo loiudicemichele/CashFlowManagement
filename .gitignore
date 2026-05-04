@@ -213,4 +213,6 @@ models/Tree-Boosting/outputs/*
 models/transformers/outputs/*
 
 # Dump File
-models/transformers/models/*
+models/transformers/models/chronos-2-cashflow-finetuned
+models/transformers/models/chronos-2-small
+models/transformers/models/chronos-t5-large

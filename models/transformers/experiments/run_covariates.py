@@ -45,31 +45,12 @@ config = ChronosConfig()
 
 config.data_dir    = '../../../Datasets/data_partitioned/'
 config.output_dir  = '../outputs/chronos_panel_covariates'
-config.model       = 'chronos-2-small'
+config.model       = 'chronos-2-cashflow-finetuned'
 config.model_name  = os.path.join(config.model_dir, config.model)
 # Explicitly define the panel ID column
 config.id_col = 'store_id'
 config.apply_log_traansf = True
-
-# List ALL covariates available in the historical dataset
-config.covariate_cols = [
-    # 'date',
-    # 'store_id',
-    'day_sin','day_cos','weekday_sin','weekday_cos','month_sin','month_cos','weekend','holiday','actual_holiday',
-    'oil_price','euribor','consumer_confidence','inflation_index','consumer_prices','fao','pandemic_uncertainty',
-    'daily_nonfood_sales','daily_food_sales','daily_total_sales',
-    'supplier_revenue_monthly','cogs_payment','pos_commission_rate','waste_rate',
-    'daily_salary','services','logistics','marketing','it','admin','other',
-    'insurance','taxes','rent','pred_outflow','pred_inflow',
-    'net_inflow'
-]
-
-# STRICTLY isolate covariates whose future values are known in production (The ones that encodes time related events)
-deterministic_covariates = ['day_sin','day_cos','weekday_sin',
-                            'weekday_cos','month_sin','month_cos',
-                            'weekend','holiday','actual_holiday', 
-                            ]
-
+config.context_len = 512
 os.makedirs(config.output_dir, exist_ok=True)
 
 # %% [markdown] ## Set Seed and Load Data
@@ -103,7 +84,7 @@ Extract ONLY the known future variables for the prediction horizon.
 We strip away the target and any stochastic covariates to simulate a true
 production environment.
 """
-future_cols = [config.id_col, 'date'] + deterministic_covariates
+future_cols = [config.id_col, 'date'] + config.deterministic_covariates
 
 # Testing a lower config.prediction_length
 first_pred_len_dates = test_df['date'].drop_duplicates().sort_values().head(config.prediction_length)
@@ -111,7 +92,7 @@ test_df_sliced = test_df[test_df['date'].isin(first_pred_len_dates)].copy()
 
 future_df = test_df_sliced[future_cols].copy()
 
-print(f"[+] future_df built with deterministic columns: {deterministic_covariates}")
+print(f"[+] future_df built with deterministic columns: {config.deterministic_covariates}")
 print(f"[+] future_df shape: {future_df.shape}\n")
 # train_df.columns
 # %% [markdown] ## Generate Panel Forecast

@@ -40,7 +40,7 @@ class ChronosConfig:
     target_col: str = 'cash_balance'
     model_dir: str = '../models/'
     model: str = 'chronos-2-small'
-    
+    stride: int = 1
     id_col: str = 'store_id' 
 
     apply_log_traansf: bool = False
@@ -58,14 +58,31 @@ class ChronosConfig:
     # Hardware
     device: Optional[str] = None            # 'cuda', 'cpu', or None for auto
 
-    # Covariates — only used by the multivariate experiment.
-    # List the *additional* feature columns (do NOT include target_col here;
-    # it is always prepended automatically in load_data_multivariate).
-    covariate_cols: List[str] = field(default_factory=list)
+    
  
     # Index that identifies the target series inside the assembled
     # multivariate tensor [target, cov_1, cov_2, ...].  Keep at 0.
     target_variate_index: int = 0
+
+    # List ALL covariates available in the historical dataset
+    covariate_cols = [
+        # 'date',
+        # 'store_id',
+        'day_sin','day_cos','weekday_sin','weekday_cos','month_sin','month_cos','weekend','holiday','actual_holiday',
+        'oil_price','euribor','consumer_confidence','inflation_index','consumer_prices','fao','pandemic_uncertainty',
+        'daily_nonfood_sales','daily_food_sales','daily_total_sales',
+        'supplier_revenue_monthly','cogs_payment','pos_commission_rate','waste_rate',
+        'daily_salary','services','logistics','marketing','it','admin','other',
+        'insurance','taxes','rent','pred_outflow','pred_inflow',
+        'net_inflow'
+    ]
+    
+    # STRICTLY isolate covariates whose future values are known in production (The ones that encodes time related events)
+    deterministic_covariates = ['day_sin','day_cos','weekday_sin',
+                                'weekday_cos','month_sin','month_cos',
+                                'weekend','holiday','actual_holiday', 
+                            ]
+
 
     def __post_init__(self):
         """Print a summary of the configuration for tracking purposes."""

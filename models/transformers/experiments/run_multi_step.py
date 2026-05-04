@@ -50,7 +50,7 @@ config.train_file = 'train_one_step.csv'
 config.test_file = 'test_one_step.csv'
 config.output_dir = '../outputs/chronos_multi_step'
 
-config.model = 'chronos-2-small'
+config.model = 'chronos-2-cashflow-finetuned'
 config.model_name = os.path.join(config.model_dir, config.model)
 
 # Forecasting settings
