@@ -150,3 +150,81 @@ def plot_rolling_comparison(
     plt.close()
 
     print(f"[+] Extended forecast plot saved to: {plot_path}")
+
+
+def plot_forecast_with_uncertainty(
+    actuals: np.ndarray,
+    pred_median: np.ndarray,
+    pred_lower: np.ndarray,
+    pred_upper: np.ndarray,
+    date_index: Union[pd.DatetimeIndex, np.ndarray],
+    output_dir: str,
+    title: Optional[str] = None,
+    figsize: tuple = (14, 5),
+    actual_color: str = "#196194",  # Blu profondo
+    pred_color: str = "#8d1a1a",    # Rosso scuro
+    fill_color: str = "#e5baba"     # Rosso pastello per l'ombra
+) -> None:
+    """
+    Plot actual vs predicted cash flow including prediction intervals (uncertainty).
+
+    The function creates a line plot with actual values in solid blue,
+    median predictions in dashed red, and a shaded area representing the
+    confidence interval (e.g., 10th to 90th percentile).
+    """
+    # Assicuriamoci che gli input siano array 1D
+    actuals = np.asarray(actuals).ravel()
+    pred_median = np.asarray(pred_median).ravel()
+    pred_lower = np.asarray(pred_lower).ravel()
+    pred_upper = np.asarray(pred_upper).ravel()
+
+    plt.figure(figsize=figsize)
+
+    # Plot della banda di incertezza (va disegnata prima così resta in background)
+    plt.fill_between(
+        date_index, 
+        pred_lower, 
+        pred_upper, 
+        color=fill_color, 
+        alpha=0.4, 
+        label='Prediction Interval (10% - 90%)',
+        edgecolor='none'
+    )
+
+    # Plot dei valori reali
+    plt.plot(
+        date_index, actuals,
+        label='Actual Cash Flow',
+        linestyle='-',
+        linewidth=1.5,
+        color=actual_color
+    )
+
+    # Plot della previsione mediana (Quantile 0.5)
+    plt.plot(
+        date_index, pred_median,
+        label='Predicted Median (0.5)',
+        linestyle='--',
+        linewidth=2,
+        color=pred_color
+    )
+
+    # Customizzazione grafica
+    if title is None:
+        title = 'Chronos-2 Forecast with Uncertainty Bounds'
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel('Date', fontsize=12)
+    plt.ylabel('Cash Balance (€)', fontsize=12)
+    plt.legend(fontsize=10, loc='best')
+    plt.grid(True, alpha=0.3)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Salvataggio
+    os.makedirs(output_dir, exist_ok=True)
+    plot_path = os.path.join(output_dir, 'forecast_with_uncertainty.png')
+    plt.savefig(plot_path, dpi=300)
+    plt.show()
+    plt.close()
+
+    print(f"[+] Uncertainty forecast plot saved to: {plot_path}")

@@ -41,6 +41,9 @@ class ChronosConfig:
     model_dir: str = '../models/'
     model: str = 'chronos-2-small'
     
+    id_col: str = 'store_id' 
+
+    apply_log_traansf: bool = False
     # Model
     model_name: str = os.path.join(model_dir, model)   # or "amazon/chronos-t5-small"
 
@@ -54,6 +57,15 @@ class ChronosConfig:
 
     # Hardware
     device: Optional[str] = None            # 'cuda', 'cpu', or None for auto
+
+    # Covariates — only used by the multivariate experiment.
+    # List the *additional* feature columns (do NOT include target_col here;
+    # it is always prepended automatically in load_data_multivariate).
+    covariate_cols: List[str] = field(default_factory=list)
+ 
+    # Index that identifies the target series inside the assembled
+    # multivariate tensor [target, cov_1, cov_2, ...].  Keep at 0.
+    target_variate_index: int = 0
 
     def __post_init__(self):
         """Print a summary of the configuration for tracking purposes."""
@@ -71,4 +83,9 @@ class ChronosConfig:
         print(f"Summary statistic:   {'median' if self.use_median else 'mean'}")
         print(f"Random seed:         {self.seed}")
         print(f"Device:              {self.device if self.device else 'auto'}")
+        if self.covariate_cols:
+            print(f"Covariate columns:    {self.covariate_cols}")
+            print(f"Target variate idx:   {self.target_variate_index}")
+        else:
+            print("Covariate columns:    none (univariate mode)")
         print("=" * 60 + "\n")

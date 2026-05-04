@@ -67,7 +67,7 @@ config.data_dir    = '../../../Datasets/data_partitioned/aggregated'
 config.train_file  = 'train_one_step.csv'
 config.test_file   = 'test_one_step.csv'
 config.output_dir  = '../outputs/chronos_multi_output'
-config.model       = 'chronos-2-small'
+config.model       = 'chronos-t5-large'
 config.model_name  = os.path.join(config.model_dir, config.model)
 
 # Context fed to the model: last N days of training history.
@@ -195,3 +195,4 @@ plot_forecast(
 )
 
 print("\n[+] Multi-output experiment completed successfully.")
+# %%
